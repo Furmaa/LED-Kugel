@@ -14,7 +14,7 @@
 ##
 ##Variables:
 rad = 100;
-n = 10;
+n = 100;
 
 ##Parameters:
 r = 1;
@@ -25,7 +25,5 @@ c = 10;
 dist = OnSphere(n, rad);
 dist = dist.Init();
 particleSize = 20;
-dist.PlotIt(particleSize);
+dist.Plot();
 
-
-##Distribution.Init();

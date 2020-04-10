@@ -21,12 +21,11 @@ classdef OnSphere
     
     Pop = 0; #of particles
     Size = 0; #of sphere
-    X = []; #coordinate of particles
-    Y = []; #coordinate of particles
-    Z = []; #coordinate of particles
+    Particles = []; #descartes coordinates of particles, Pop x 3
     MeanDistance = 0; #of particles
-    Distances = [];
-    Closest = [];
+    StdDistance = 0; #of particles
+    Distances = []; #Pop x Pop matrix
+    Closest = []; #Pop x 1 
     
   endproperties
   
@@ -88,38 +87,44 @@ classdef OnSphere
         #random points initialized, spherical coordinates
         r = ones(obj.Pop,1);
         phi = rand(obj.Pop,1)*2*pi;
-        theta = rand(obj.Pop,1)*2*pi;
+        theta = rand(obj.Pop,1)*pi;
         
         #transforming to cartesian coordinates
-        [obj.X, obj.Y, obj.Z] = sph2cart( theta, phi, r);
-        
+        [obj.Particles(:,1), obj.Particles(:,2), obj.Particles(:,3)] = sph2cart( theta, phi, r);
+
         #scaling
-        obj.X *= obj.Size;
-        obj.Y *= obj.Size;
-        obj.Z *= obj.Size;
+        
+        obj.Particles *= obj.Size;
         
     endfunction
     
-    function varargout = PlotIt ( obj, varargin ) 
-        
-        x = obj.X;
-        y = obj.Y;
-        z = obj.Z;
+    function varargout = Plot ( obj, varargin )        
         
         #drawing particles on sphere
-        if ( nargin > 1)
-          
-          particleSize = varargin{1};
-          
-        elseif ( nargin == 1)
+        if ( nargin == 1 )
           
           particleSize = 20;
+          idx = 1:obj.Pop;
+          
+        elseif ( nargin == 2 )
+          
+          particleSize = 20;  
+          idx = varargin{1};      
+        
+        elseif ( nargin == 3 )
+            
+          particleSize = varargin{2};  
+          idx = varargin{1};  
           
         else
           
-          error("OnSphere: PlotIt: no argument parsed");
+          error("OnSphere: Plot: expecting zero to 2 arguments");
           
         endif
+        
+        x = obj.Particles(idx,1);
+        y = obj.Particles(idx,2);
+        z = obj.Particles(idx,3);
        
         obj.Draw ( x, y, z, particleSize );
  
@@ -154,6 +159,7 @@ classdef OnSphere
         endfor
         
         obj.MeanDistance = sum(sum(obj.Distances))/(obj.Pop^2-obj.Pop);
+        obj.StdDistance = sum ( sum ( ( obj.Distances  - obj.MeanDistance ).^2 ) - obj.MeanDistance^2  ) / (obj.Pop^2-obj.Pop-1);
         
     endfunction
     
@@ -183,33 +189,7 @@ classdef OnSphere
       zlabel("z");
 
     endfunction
-  
-    function varargout = PlotWhat ( varargin )  
-        
-      if ( nargin == 3 )
-        
-        x = varargin{1};
-        y = varargin{2};
-        z = varargin{3};
-        particleSize = 20;
-        
-      elseif ( nargin == 4 )
-        
-        x = varargin{1};
-        y = varargin{2};
-        z = varargin{3};
-        particleSize = varargin{4};
-        
-      else
-        error ( "@OnSphere: PlotWhat: expecting 3 coordinate vectors - X, Y, Z \n- and an optional markersize value");
-      endif
-    
-    OnSphere.Draw ( x, y, z, particleSize );
-      
-    endfunction
-  
-
-  
+ 
   endmethods
     
   
