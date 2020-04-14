@@ -1,6 +1,6 @@
 ## -*- texinfo -*-
 ## @deftypefn  {} {} OnSphere ()
-## @deftypefnx {} {} OnSphere (@var{N})
+## @deftypefnx {} {} OnSphere (@var{n}, @var{radius})
 ## Creates an object representing particles of a population Pop
 ## on a sphere described by radius Size
 ##
@@ -22,10 +22,15 @@ classdef OnSphere
     Pop = 0; #of particles
     Size = 0; #of sphere
     Particles = []; #descartes coordinates of particles, Pop x 3
-    MeanDistance = 0; #of particles
+    Velocities = []; #descartes coordinates of particle velocity vectors, Pop x 3
+    Accelerations = []; #descartes coordinates of particle acceleration vectors, Pop x 3
+    MeanDistance = 0; #between particles, aggregated
     StdDistance = 0; #of particles
+    StdDistances = [];#of one particle from every other, 1 x Pop
     Distances = []; #Pop x Pop matrix
     Closest = []; #Pop x 1 
+    MeanDistances = []; #of one particle from every other, 1 x Pop
+    c = 0; #repulsive force constant
     
   endproperties
   
@@ -43,8 +48,8 @@ classdef OnSphere
         print_usage();
       endif
       
-      if ( nargin > 2 )
-        error ("@OnSphere: expecting maximum two input variables.");
+      if ( nargin > 3 )
+        error ("@OnSphere: expecting maximum three input variables.");
       endif
 
       if ( nargin == 1 )
@@ -58,6 +63,7 @@ classdef OnSphere
         else
           error ("@OnSphere: population must be a simple real number");
         endif
+        obj.c = 1;
       endif
       
       if ( nargin == 2 )
@@ -71,8 +77,26 @@ classdef OnSphere
         else 
           error ("@OnSphere: size must be a simple real number");
         endif
+        obj.c = 1;
       endif
       
+      if ( nargin == 3)
+        if (isreal (varargin{1}) && size(varargin{1},1)==1 && size(varargin{1},2)==1)
+          obj.Pop = round(abs(varargin{1}));
+        else 
+          error ("@OnSphere: population must be a simple real number");
+        endif
+        if (isreal (varargin{2}) && size(varargin{2},1)==1 && size(varargin{2},2)==1)
+          obj.Size = abs(varargin{2});
+        else 
+          error ("@OnSphere: size must be a simple real number");
+        endif
+        if (isreal (varargin{3}) && size(varargin{3},1)==1 && size(varargin{3},2)==1)
+          obj.c = abs(varargin{3});
+        else 
+          error ("@OnSphere: force constant must be a simple real number");
+        endif
+      endif 
 
     endfunction
 
@@ -96,6 +120,14 @@ classdef OnSphere
         
         obj.Particles *= obj.Size;
         
+        #other variables initialized
+        obj.Velocities = zeros(obj.Pop,3);
+        obj.Accelerations = zeros(obj.Pop,3);
+        StdDistances = zeros(1,obj.Pop);#of one particle from every other, 1 x Pop
+        Distances = zeros(obj.Pop,obj.Pop);; #Pop x Pop matrix
+        Closest = zeros(obj.Pop,1);; #Pop x 1 
+        MeanDistances = zeros(1,obj.Pop);; #of one particle from every other, 1 x Pop
+     
     endfunction
     
     function varargout = Plot ( obj, varargin )        
@@ -133,34 +165,58 @@ classdef OnSphere
     function obj = CalcDistances ( obj ) #calculates mean distance of particles
       
         obj.Distances = zeros ( obj.Pop , obj.Pop );
+        obj.MeanDistances = zeros( 1, obj.Pop );
         obj.Closest = zeros ( obj.Pop, 1 );
+        obj.ClosestIdx = zeros ( obj.Pop, 1);
         obj.Closest(:) = 2*obj.Size; #sphere diameter
     
         for i = 1 : (obj.Pop-1)           
           
           for j = (i+1) : obj.Pop
             
-            dx = obj.X(i) - obj.X(j);
-            dy = obj.Y(i) - obj.Y(j);
-            dz = obj.Z(i) - obj.Z(j);
-            d_ = sqrt(dx^2+dy^2+dz^2);
-            obj.Distances ( i, j ) = d_;
-            obj.Distances ( j, i ) = d_;
+            dr = obj.Particles(i,:) - obj.Particles(j,:);
+            dr_ = norm(dr);
+            obj.Distances ( i, j ) = dr_;
+            obj.Distances ( j, i ) = dr_;
             
-            if ( d_ < obj.Closest ( i ) )
-              obj.Closest ( i ) = d_;  
+            if ( dr_ < obj.Closest ( i ) )
+              obj.Closest ( i ) = dr_;  
             endif
-            if ( d_ < obj.Closest ( j ) )
-              obj.Closest ( j ) = d_;  
+            if ( dr_ < obj.Closest ( j ) )
+              obj.Closest ( j ) = dr_;  
             endif
           
           endfor
           
         endfor
         
-        obj.MeanDistance = sum(sum(obj.Distances))/(obj.Pop^2-obj.Pop);
-        obj.StdDistance = sum ( sum ( ( obj.Distances  - obj.MeanDistance ).^2 ) - obj.MeanDistance^2  ) / (obj.Pop^2-obj.Pop-1);
+        obj.MeanDistances = sum(obj.Distances)/(obj.Pop-1);
+        obj.MeanDistance = sum(obj.MeanDistances)/(obj.Pop);
+        obj.StdDistances = sqrt( ( sum ( ( obj.Distances  - obj.MeanDistance ).^2 ) - obj.MeanDistance^2  ) / (obj.Pop^2-obj.Pop-1));
+        obj.StdDistance = sqrt(sum ( sum ( ( obj.Distances  - obj.MeanDistance ).^2 ) - obj.MeanDistance^2  ) / (obj.Pop^2-obj.Pop-1));
         
+    endfunction
+      
+    function obj = StepCenter ( obj, dt ) 
+      
+      #particle dynamics
+      dr = obj.Particles - mean(obj.Particles); #position difference vector between particles and particle cloud center 
+      dr_ = sqrt(sum(dr.^2,2)); #norm vector of position differences
+      obj.Accelerations = obj.c * dr./([dr_,dr_,dr_].^2); #raw acceleration from Q-q repulsion
+      rnormed = obj.Particles/obj.Size; #normed position vectors
+      accrad_ = sum(obj.Accelerations.*rnormed,2); #scalar product vector 
+      obj.Accelerations = obj.Accelerations - [accrad_,accrad_,accrad_].*rnormed; #substract radial parts    
+      
+      #Euler forward    
+      obj.Particles = obj.Particles + obj.Accelerations.*dt^2/2; 
+##      obj.Velocities = obj.Velocities + obj.Accelerations.*dt;     
+      
+      #particle kinematics
+##      velrad_ = sum(obj.Velocities.*rnormed,2); #scalar product vector 
+##      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*rnormed; #subtract radial parts      
+      r_ = sqrt(sum(obj.Particles.^2,2)); #norm vector of positions
+      obj.Particles = obj.Particles./[r_,r_,r_]*obj.Size; #project to sphere
+      
     endfunction
     
   endmethods
