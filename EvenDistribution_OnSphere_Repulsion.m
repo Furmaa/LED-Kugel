@@ -13,12 +13,14 @@
 ##
 ##
 ##Variables:
-radius = 100;
-n = 99;
+radius = 1;
+n = 24;
 
+c = 20*radius^2/n;
 ##Parameters:
-c = 5000;
-dt = 0.1;
+dt = 0;
+dt_max = 0.4;
+dt_min = dt_max/32;
 check1 = 10;
 check2 = 50;
 
@@ -27,32 +29,62 @@ dist = dist.Init();
 particleSize = 20;
 
 checkval1 = 0;
-convval = [norm(mean(dist.Particles))];
-iterations = 0;
+convval = zeros(n,1);;
+##convval = [0];
+iterations = 1;
+time = 0;
+times = [0];
 
 do 
-  
-  
-  dist = dist.StepCenter( dt); 
-  convval = [convval, norm(mean(dist.Particles))];
+  dt = dt_max;
   iterations++;
-  
-  if (iterations == check1)
-    checkval = convval(iterations);
+##  dist = dist.StepCenter( dt); 
+  do 
+  dist = dist.StepAway( dt); 
+  convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
+####  convval = [convval, norm(mean(dist.Particles))];
+##  if  (convval(:,iterations) < 5)
+##    if (dt < dt_max);
+##      dt *= 2;
+####      dist = dist.StepCenter( dt);
+##      dist = dist.StepAway( dt); 
+##      convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
+####      convval(iterations) = norm(mean(dist.Particles));
+##    endif
+##    
+##  elseif (dt > dt_min)
+##      dt /= 2;
+####      dist = dist.StepCenter( dt);
+##      dist = dist.StepAway( dt); 
+##      convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
+####      convval(iterations) = norm(mean(dist.Particles));
+##  endif
+  if (dt>dt_min)
+  dt /= 2;
   endif
-  if (iterations >= check2)
-    if ( convval(iterations) >= checkval )
-       printf("Divergence at iteration checkpoint %i\n",check2++);
-      break
-    endif
-  endif
+  until (convval(:,iterations) < 5 || dt == dt_min)
   
-##until ( ( dist.Velocities < radius/c ) && ( center(iterations) < radius/50 ) )
-until ( convval(iterations)/radius < 0.0001 )
+  time += dt;
+  times = [times, time];
+  
+##  if (iterations > check1)
+##    checkval = mean(convval(:,iterations-round(check1/2):iterations-1),2);
+##  endif
+##  if (iterations >= check2)
+##    if ( checkval*1.5 > convval(:,iterations) )
+##       1;
+##     else
+##       printf("Divergence at iteration %i\n", iterations);
+##       break
+##    endif
+##  endif
+  
+until ( abs(convval(:,iterations)-convval(:,iterations-1)) < 0.1 )
+##until ( convval(iterations) < 0.01 )
 
-plot(convval/radius);
-xlabel("iterations");
-ylabel("rel. distance of particle cloud center from sphere center [%]");
+plot(times,convval);
+xlabel("time");
+ylabel("convergence value");
 ##dist.Plot();
 
 
