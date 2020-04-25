@@ -22,6 +22,7 @@ classdef OnSphere
     Pop = 0; #of particles
     Size = 0; #of sphere
     Particles = []; #descartes coordinates of particles, Pop x 3
+    Rnormed = []; #normed to Size descartes coordinates of particles, Pop x 3
     Velocities = []; #descartes coordinates of particle velocity vectors, Pop x 3
     Accelerations = []; #descartes coordinates of particle acceleration vectors, Pop x 3
     MeanDistance = 0; #between particles, aggregated
@@ -205,20 +206,12 @@ classdef OnSphere
     function obj = StepCenter ( obj, dt ) 
       
       #particle dynamics
-      for i = 1:obj.Pop
-        AwayParticles = [obj.Particles(1:(i-1),:);obj.Particles((i+1):obj.Pop,:)];
-        dr = obj.Particles(i,:) - mean(AwayParticles); #position difference vector between particles and particle cloud center 
-        dr_ = sqrt(sum(dr.^2,2)); #norm vector of position differences
-        obj.Accelerations(i,:) = obj.c * dr./([dr_,dr_,dr_].^3); #raw acceleration from Q-q repulsion
-      endfor
-      rnormed = obj.Particles/obj.Size; #normed position vectors
-      accrad_ = sum(obj.Accelerations.*rnormed,2); #scalar product vector 
-      obj.Accelerations = obj.Accelerations - [accrad_,accrad_,accrad_].*rnormed; #substract radial parts    
+      obj  = obj.CalcAcc();  
       
       #Euler forward    
       obj.Velocities = obj.Velocities + obj.Accelerations*dt;     
-      velrad_ = sum(obj.Velocities.*rnormed,2); #scalar product vector 
-      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*rnormed; #subtract radial parts            
+      velrad_ = sum(obj.Velocities.*obj.Rnormed,2); #scalar product vector 
+      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*obj.Rnormed; #subtract radial parts            
       obj.Particles = obj.Particles + obj.Velocities*dt; 
       r_ = sqrt(sum(obj.Particles.^2,2)); #norm vector of positions
       obj.Particles = obj.Particles./[r_,r_,r_]*obj.Size; #project to sphere
@@ -226,6 +219,22 @@ classdef OnSphere
     endfunction
     
     function obj = StepAway ( obj, dt ) 
+      
+      #particle dynamics
+      obj  = obj.CalcAcc();  
+      
+      #Euler forward 
+      obj.Velocities = obj.Velocities + obj.Accelerations.*dt;
+      velrad_ = sum(obj.Velocities.*obj.Rnormed,2); #scalar product vector 
+      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*obj.Rnormed; #subtract radial parts      
+      obj.Particles = obj.Particles + obj.Velocities.*dt; 
+##      obj.Particles = obj.Particles + obj.Accelerations*dt^2/2; 
+      r_ = sqrt(sum(obj.Particles.^2,2)); #norm vector of positions
+      obj.Particles = obj.Particles./[r_,r_,r_]*obj.Size; #project to sphere
+      
+    endfunction
+    
+    function obj = CalcAcc ( obj )
       
       #particle dynamics
 ##      obj = obj.CalcDistances();
@@ -236,17 +245,9 @@ classdef OnSphere
         dr_ = sqrt(sum(dr.^2,2)); #norm vector of position differences        
         obj.Accelerations(i,:) = sum(obj.c * dr./([dr_,dr_,dr_].^3)); #raw acceleration from Q-q repulsion
       endfor
-      rnormed = obj.Particles/obj.Size; #normed position vectors
-      accrad_ = sum(obj.Accelerations.*rnormed,2); #scalar product vector 
-      obj.Accelerations = obj.Accelerations - [accrad_,accrad_,accrad_].*rnormed; #substract radial parts    
-  
-      #Euler forward 
-      obj.Velocities = obj.Velocities + obj.Accelerations*dt;
-      velrad_ = sum(obj.Velocities.*rnormed,2); #scalar product vector 
-      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*rnormed; #subtract radial parts      
-      obj.Particles = obj.Particles + obj.Velocities*dt; 
-      r_ = sqrt(sum(obj.Particles.^2,2)); #norm vector of positions
-      obj.Particles = obj.Particles./[r_,r_,r_]*obj.Size; #project to sphere
+      obj.Rnormed = obj.Particles/obj.Size; #normed position vectors
+      accrad_ = sum(obj.Accelerations.*obj.Rnormed,2); #scalar product vector 
+      obj.Accelerations = obj.Accelerations - [accrad_,accrad_,accrad_].*obj.Rnormed; #substract radial parts    
       
     endfunction
     

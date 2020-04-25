@@ -13,14 +13,14 @@
 ##
 ##
 ##Variables:
-radius = 1;
-n = 24;
+radius = 50; 
+n = 78; 
 
-c = 20*radius^2/n;
+c = 40*radius^2/(n*(n-1));
 ##Parameters:
 dt = 0;
 dt_max = 0.4;
-dt_min = dt_max/32;
+dt_min = dt_max/256;
 check1 = 10;
 check2 = 50;
 
@@ -29,40 +29,39 @@ dist = dist.Init();
 particleSize = 20;
 
 checkval1 = 0;
-convval = zeros(n,1);;
+convval = zeros(n,1);
 ##convval = [0];
 iterations = 1;
 time = 0;
 times = [0];
 
+###calculate initial forces
+dist = dist.CalcAcc(); 
+convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
+
+###repeat until converging to equilibrium in force - not necessarily stationary in terms of movement! 
 do 
+  
   dt = dt_max;
   iterations++;
 ##  dist = dist.StepCenter( dt); 
-  do 
+   
   dist = dist.StepAway( dt); 
   convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
-####  convval = [convval, norm(mean(dist.Particles))];
-##  if  (convval(:,iterations) < 5)
-##    if (dt < dt_max);
-##      dt *= 2;
-####      dist = dist.StepCenter( dt);
-##      dist = dist.StepAway( dt); 
-##      convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
-####      convval(iterations) = norm(mean(dist.Particles));
-##    endif
-##    
-##  elseif (dt > dt_min)
-##      dt /= 2;
-####      dist = dist.StepCenter( dt);
-##      dist = dist.StepAway( dt); 
-##      convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
-####      convval(iterations) = norm(mean(dist.Particles));
+  ####  convval = [convval, norm(mean(dist.Particles))];
+  while ((convval(:,iterations)-convval(:,iterations-1)) <= 0 && dt != dt_min)
+    
+    if (dt > dt_min)
+      dt /= 2;
+##      dist = dist.StepCenter( dt);
+      dist = dist.StepAway( dt); 
+      convval(:,iterations) = sqrt(sum(dist.Accelerations.^2,2));
+##      convval(iterations) = norm(mean(dist.Particles));
+    endif
+##  if (dt>dt_min)
+##  dt /= 2;
 ##  endif
-  if (dt>dt_min)
-  dt /= 2;
-  endif
-  until (convval(:,iterations) < 5 || dt == dt_min)
+  endwhile 
   
   time += dt;
   times = [times, time];
@@ -79,7 +78,7 @@ do
 ##    endif
 ##  endif
   
-until ( abs(convval(:,iterations)-convval(:,iterations-1)) < 0.1 )
+until ( abs(convval(:,iterations)-convval(:,iterations-1)) < 0.001 ) 
 ##until ( convval(iterations) < 0.01 )
 
 plot(times,convval);
