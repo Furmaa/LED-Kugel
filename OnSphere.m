@@ -25,6 +25,7 @@ classdef OnSphere
     Rnormed = []; #normed to Size descartes coordinates of particles, Pop x 3
     Velocities = []; #descartes coordinates of particle velocity vectors, Pop x 3
     Accelerations = []; #descartes coordinates of particle acceleration vectors, Pop x 3
+    StdAcc = 0; #standard deviation of acceleration norms
     MeanDistance = 0; #between particles, aggregated
     StdDistance = 0; #of particles
     StdDistances = [];#of one particle from every other, 1 x Pop
@@ -35,13 +36,15 @@ classdef OnSphere
     dr = [];
     c = 0; #repulsive force constant
     
+    
   endproperties
   
-##  properties (Constant = true) 
-##    
-##    Pop = 2;
-##    
-##  endproperties
+  properties (Access = 'public') 
+    
+    drag = 0; #drag force constant
+    hoch = 0; #repulsive force order
+    
+  endproperties
 
   methods
     
@@ -114,7 +117,7 @@ classdef OnSphere
         #random points initialized, spherical coordinates
         r = ones(obj.Pop,1);
         phi = rand(obj.Pop,1)*2*pi;
-        theta = rand(obj.Pop,1)*pi;
+        theta = rand(obj.Pop,1)*2*pi;
         
         #transforming to cartesian coordinates
         [obj.Particles(:,1), obj.Particles(:,2), obj.Particles(:,3)] = sph2cart( theta, phi, r);
@@ -123,14 +126,16 @@ classdef OnSphere
         
         obj.Particles *= obj.Size;
         
-        #other variables initialized
-        obj.Velocities = zeros(obj.Pop,3);
+        #initialize particle dynamics
         obj.Accelerations = zeros(obj.Pop,3);
-        StdDistances = zeros(1,obj.Pop);#of one particle from every other, 1 x Pop
-        Distances = zeros(obj.Pop,obj.Pop);; #Pop x Pop matrix
-        Closest = zeros(obj.Pop,1);; #Pop x 1 
-        MeanDistances = zeros(1,obj.Pop);; #of one particle from every other, 1 x Pop
-        dr = zeros(obj.Pop,1);
+        obj.Velocities = zeros(obj.Pop,3);
+        
+        #other variables initialized
+        obj.StdDistances = zeros(1,obj.Pop);#of one particle from every other, 1 x Pop
+        obj.Distances = zeros(obj.Pop,obj.Pop);; #Pop x Pop matrix
+        obj.Closest = zeros(obj.Pop,1);; #Pop x 1 
+        obj.MeanDistances = zeros(1,obj.Pop);; #of one particle from every other, 1 x Pop
+        obj.dr = zeros(obj.Pop,1);
      
     endfunction
     
@@ -198,57 +203,57 @@ classdef OnSphere
         
         obj.MeanDistances = sum(obj.Distances)/(obj.Pop-1);
         obj.MeanDistance = sum(obj.MeanDistances)/(obj.Pop);
-        obj.StdDistances = sqrt( ( sum ( ( obj.Distances  - obj.MeanDistance ).^2 ) - obj.MeanDistance^2  ) / (obj.Pop^2-obj.Pop-1));
-        obj.StdDistance = sqrt(sum ( sum ( ( obj.Distances  - obj.MeanDistance ).^2 ) - obj.MeanDistance^2  ) / (obj.Pop^2-obj.Pop-1));
+##        obj.StdDistance = std ( mean ( sort ( obj.Distances ),2 ) ( 2 : end ) );
+        obj.StdDistance = mean(std(transpose(sort(obj.Distances)))(2:end));
         
     endfunction
       
-    function obj = StepCenter ( obj, dt ) 
-      
-      #particle dynamics
-      obj  = obj.CalcAcc();  
-      
-      #Euler forward    
-      obj.Velocities = obj.Velocities + obj.Accelerations*dt;     
-      velrad_ = sum(obj.Velocities.*obj.Rnormed,2); #scalar product vector 
-      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*obj.Rnormed; #subtract radial parts            
-      obj.Particles = obj.Particles + obj.Velocities*dt; 
-      r_ = sqrt(sum(obj.Particles.^2,2)); #norm vector of positions
-      obj.Particles = obj.Particles./[r_,r_,r_]*obj.Size; #project to sphere
-      
-    endfunction
-    
     function obj = StepAway ( obj, dt ) 
       
-      #particle dynamics
-      obj  = obj.CalcAcc();  
-      
       #Euler forward 
-      obj.Velocities = obj.Velocities + obj.Accelerations.*dt;
-      velrad_ = sum(obj.Velocities.*obj.Rnormed,2); #scalar product vector 
-      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*obj.Rnormed; #subtract radial parts      
       obj.Particles = obj.Particles + obj.Velocities.*dt; 
 ##      obj.Particles = obj.Particles + obj.Accelerations*dt^2/2; 
       r_ = sqrt(sum(obj.Particles.^2,2)); #norm vector of positions
       obj.Particles = obj.Particles./[r_,r_,r_]*obj.Size; #project to sphere
+      
+      obj = obj.CalcVel ( dt );
+      
+      #particle dynamics
+      obj  = obj.CalcAcc();  
       
     endfunction
     
     function obj = CalcAcc ( obj )
       
       #particle dynamics
-##      obj = obj.CalcDistances();
+
       for i = 1:obj.Pop
+        
         AwayParticles = [obj.Particles(1:(i-1),:);obj.Particles((i+1):obj.Pop,:)];
         dr = obj.Particles(i,:) - AwayParticles; #position difference vector (Pop-1) x 3
         dr = dr + (dr==0)*0.1;
         dr_ = sqrt(sum(dr.^2,2)); #norm vector of position differences        
-        obj.Accelerations(i,:) = sum(obj.c * dr./([dr_,dr_,dr_].^3)); #raw acceleration from Q-q repulsion
+        obj.Accelerations(i,:) = sum(obj.c * dr.*(dr_.^obj.hoch)); #raw acceleration from q-q repulsion
+        
       endfor
+      
       obj.Rnormed = obj.Particles/obj.Size; #normed position vectors
       accrad_ = sum(obj.Accelerations.*obj.Rnormed,2); #scalar product vector 
       obj.Accelerations = obj.Accelerations - [accrad_,accrad_,accrad_].*obj.Rnormed; #substract radial parts    
+      vel_ = sqrt(sum(obj.Velocities.^2,2)); #norm vector of 
       
+      obj.Accelerations = obj.Accelerations - obj.drag*obj.Velocities.*vel_;
+      
+      obj.StdAcc = std ( sqrt( sum ( obj.Accelerations.^2,2 ) ) );
+      
+    endfunction
+    
+    function obj = CalcVel ( obj, dt ) 
+      
+      obj.Velocities = obj.Velocities + obj.Accelerations.*dt;
+      velrad_ = sum(obj.Velocities.*obj.Rnormed,2); #scalar product vector 
+      obj.Velocities = obj.Velocities - [velrad_, velrad_, velrad_].*obj.Rnormed; #subtract radial parts      
+
     endfunction
     
   endmethods
