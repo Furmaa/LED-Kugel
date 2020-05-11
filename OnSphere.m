@@ -26,13 +26,10 @@ classdef OnSphere
     Velocities = []; #descartes coordinates of particle velocity vectors, Pop x 3
     Accelerations = []; #descartes coordinates of particle acceleration vectors, Pop x 3
     StdAcc = 0; #standard deviation of acceleration norms
-    MeanDistance = 0; #between particles, aggregated
     StdDistance = 0; #of particles
-    StdDistances = [];#of one particle from every other, 1 x Pop
     Distances = []; #Pop x Pop matrix
     Closest = []; #Pop x 1 
     ClosestIdx = []; #Pop x 1
-    MeanDistances = []; #of one particle from every other, 1 x Pop
     dr = [];
     c = 0; #repulsive force constant
     
@@ -131,10 +128,8 @@ classdef OnSphere
         obj.Velocities = zeros(obj.Pop,3);
         
         #other variables initialized
-        obj.StdDistances = zeros(1,obj.Pop);#of one particle from every other, 1 x Pop
         obj.Distances = zeros(obj.Pop,obj.Pop);; #Pop x Pop matrix
         obj.Closest = zeros(obj.Pop,1);; #Pop x 1 
-        obj.MeanDistances = zeros(1,obj.Pop);; #of one particle from every other, 1 x Pop
         obj.dr = zeros(obj.Pop,1);
      
     endfunction
@@ -174,7 +169,6 @@ classdef OnSphere
     function obj = CalcDistances ( obj ) #calculates mean distance of particles
       
         obj.Distances = zeros ( obj.Pop , obj.Pop );
-        obj.MeanDistances = zeros( 1, obj.Pop );
         obj.Closest = zeros ( obj.Pop, 1 );
         obj.ClosestIdx = zeros ( obj.Pop, 1);
         obj.Closest(:) = 2*obj.Size; #sphere diameter
@@ -201,9 +195,6 @@ classdef OnSphere
           
         endfor
         
-        obj.MeanDistances = sum(obj.Distances)/(obj.Pop-1);
-        obj.MeanDistance = sum(obj.MeanDistances)/(obj.Pop);
-##        obj.StdDistance = std ( mean ( sort ( obj.Distances ),2 ) ( 2 : end ) );
         obj.StdDistance = mean(std(transpose(sort(obj.Distances)))(2:end));
         
     endfunction
