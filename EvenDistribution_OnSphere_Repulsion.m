@@ -13,8 +13,8 @@
 ##
 ##
 ##Variables:
-radius = 50; 
-n = 78; 
+radius = 1; 
+n = 50; 
 
 #Variables
 ##radius = 2;
@@ -22,11 +22,11 @@ n = 78;
 
 ##Simulation Parameters:
 ##c = 4*radius^2/(n*(n-1));
-c_m = 0:0.05:20;
+c_m = 0:0.5:20;
 hoch_m = -1:-0.1:-9;
 drag_m = 0:1:10;
 dt_max = 3.2*radius/n;
-dt_min = 0.000001;
+dt_min = 0.0001;
 check1 = 10;
 check2 = 50;
 checkval1 = 0;
@@ -165,6 +165,8 @@ if ( measure < min )
   min_vel_all = vel_all;
 endif
 
+disp("Iterations:"); disp(iteration);
+disp("Convergation measure:");disp(measure);
 endfor
 
 ##plot ( min_iterations, min_convval );
