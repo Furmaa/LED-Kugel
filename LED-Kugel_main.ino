@@ -4,7 +4,7 @@
 
 #define NEO_PIN 13
 #define NUMPIXELS 16
-#define STEP (PI/8)
+#define STEP (2*PI/NUMPIXELS)
 
 // Variables
 int error;
